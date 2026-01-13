@@ -1,0 +1,230 @@
+---
+title: "Memoria PLN Grupo 5"
+date: "2026-01-13"
+output:
+  pdf_document:
+    keep_tex: false
+header-includes:
+  - \usepackage{fvextra}
+  - \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\}}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+# Pregunta 1
+
+```{r preg1, eval=FALSE, echo=TRUE}
+
+diccionario <- readLines("dic_es.txt", encoding = "UTF-8")
+ordenada <- function(p) {
+  paste(sort(strsplit(p, "")[[1]]), collapse = "")
+} #ordeno las letras de la palabra,
+#para luego sacar una lista de palabras con las mismas letras
+camper <- function(palabra_inicial, diccionario) {
+  palabra_actual<- tolower(palabra_inicial)
+  n <- nchar(palabra_actual)
+  Vn <- diccionario[nchar(diccionario) == n]
+  Vu <- c(palabra_actual)
+  
+  seguir<- TRUE
+  letras <- c(letters, "ñ", "á", "é", "í", "ó", "ú")
+  
+  while (seguir){
+    opciones <- c()
+    
+    permutaciones <- Vn[
+      sapply(Vn,ordenada) == ordenada(palabra_actual) &!(Vn %in% Vu)
+    ] # regla de permutar
+    if (length(permutaciones) > 0) {
+      opciones <- c(opciones, permutaciones)
+    } #concadenar todas las posibilidades
+  
+    palabra_vec <- strsplit(palabra_actual, "")[[1]]
+    for (i in 1:n) {
+      for (l in letras) {
+        if (l != palabra_vec[i]) {
+          nueva <- palabra_vec
+          nueva[i] <- l
+          nueva_palabra <- paste(nueva, collapse = "")
+          if (nueva_palabra %in% Vn && !(nueva_palabra %in% Vu)) {
+            opciones <- c(opciones, nueva_palabra)
+          }
+        }
+      }
+    } #regla de cambio de letra
+    
+    opciones <- unique(opciones)
+    
+    if(length(opciones) == 0) {
+      seguir <- FALSE
+    }
+    else{
+      palabra_actual <- opciones[1]
+      Vu <- c(Vu,palabra_actual)
+    }
+  }
+  return(Vu)
+}
+resultado <- camper("trapo",diccionario)
+print(resultado)
+```
+
+
+# Pregunta 4
+
+## Desarrollo del ejercicio 4
+
+Para explicar el desarrollo del ejercicio 4 lo vamos a dividir en 3 partes para entenderlo mejor.
+
+En la esta primera parte, cargamos todo lo necesario, es decir, funciones auxiliares que se usaran en el código, e inicializar las variables globales que guardarán los resultados.
+
+```{r parte1, eval=FALSE, echo=TRUE}
+source("funciones_auxiliares.R")
+diccionario <- readLines("dic_es.txt", encoding = "UTF-8")
+
+mejor_anillo_encontrado <- list()
+todos_anillos <- list()
+max_longitud <- 0
+```
+
+Como se puede ver se cargan los archivos necesarios además se crean unas variables globlaes. La de mejor anillo contendrá el mejor anillo encontrado con el programa. Max_longitud corresponde a la longitud de dicho anillo y por último, todos_anillos es una lista que guarda para cada palabra todos los anillos encontrados, es decir, si tengo la palabra peso y el programa ha encontrado 3 anillos de distinta longitud para esa palabra, en esa variable para la palabra peso se guardarán esos anillos junto con sus longitudes. Si una palabra tiene más de una anillo para una misma longitud solo se guarda uno de ellos. Es decir, la misma palabra puede tener varios anillos de distintas longitudes pero solo un anillo de una misma longitud.
+
+Seguiremos con la parte 2, en la cual se desarrolla la función principal, la cual se basa en una función recursiva que intenta imitar una búsqueda en profundidad. En esta función se le introduce una palabra inicial, un diccionario y una profundidad máxima y va buscando en profundidad mediante todas las opciones posibles a partir de la palabra (o permutar o cambiar una letra pero no ambas). Si durante la búsqueda encuentra una palabra que ha visitado anteriormente entonces significa que hay un ciclo, que se traduce como un anillo y los guarda dentro de todos_anillos. A todo esto, el mayor anillo encontrado se va guardando también en la variable de anillo más grande y si se van encontrando otros más grandes, se van sustituyendo el valor de esa variable.
+
+```{r parte2, eval=FALSE, echo=TRUE}
+encontrar_anillos <- function(palabra_act, historial, profundidad_max) {
+  # Si superamos la profundidad maxima paramos
+  if (length(historial) >= profundidad_max) {
+    return()
+  }
+  
+  # Obtener opciones posibles
+  opc_perm <- permutar_letras(palabra_act, diccionario)
+  opc_cambio <- cambiar_letra(palabra_act, diccionario)
+  opciones <- unique(c(opc_cambio, opc_perm))
+  
+  for (sig_palabra in opciones) {
+    if (sig_palabra %in% historial) { #Si la siguiente palabra está em el historial significa que hay un anillo
+
+      inicio_idx <- which(historial == sig_palabra)[1]
+      anillo_actual <- historial[inicio_idx:length(historial)]
+      longitud_anillo <- length(anillo_actual)
+      palabra_inicio <- historial[inicio_idx]
+      
+      # Crear clave para la longitud
+      longitud_key <- as.character(longitud_anillo)
+      
+      # Verificar si ya existe un anillo de esta palabra con esta longitud
+      ya_existe <- FALSE
+      if (!is.null(todos_anillos[[palabra_inicio]])) {
+        if (!is.null(todos_anillos[[palabra_inicio]][[longitud_key]])) {
+          ya_existe <- TRUE
+        }
+      }
+      
+      # Solo guardar y mostrar si no existe ya un anillo de esta palabra con esta longitud
+      if (!ya_existe) {
+        if (is.null(todos_anillos[[palabra_inicio]])) {
+          todos_anillos[[palabra_inicio]] <<- list()
+        }
+        
+        # Guardamos el anillo
+        todos_anillos[[palabra_inicio]][[longitud_key]] <<- anillo_actual
+        cat("Anillo encontrado para la palabra ", palabra_inicio, " con una longitud de ", longitud_anillo, "\n")
+        
+        # Si es el más largo que hemos visto, lo guardamos como el anillo más grande
+        if (longitud_anillo > max_longitud) {
+          max_longitud <<- longitud_anillo
+          mejor_anillo_encontrado <<- anillo_actual
+          cat("\rNuevo anillo máximo hallado. Palabra: ", palabra_inicio, " Longitud", max_longitud, "\n")
+        }
+      }
+    } else {
+      # Si la palabra no está en el historial seguimos investingando
+      encontrar_anillos(sig_palabra, c(historial, sig_palabra), profundidad_max)
+    }
+    
+  }
+}
+```
+
+Como caso base de la recursividad tenemos que se alcance el límite máximo de profundidad, posteriormente obtenemos todas las opciones posibles de cambio de letra o permutar para esa palabra. Una vez obtenidas las opciones se recorre una a una mediante el for y comprueba que la palabra esté en el historial. Si está, significa que hay un anillo y por tanto busca el anillo junto a su tamaño para añadirlo. Luego transformamos la longitud del anillo a texto para al crear una llave para guardar en la variable todos_anillos, no se añadan más anillos para esa palabra con esa longitud. Luego comprobamos que no exista un anillo de esa longitud para esa palabra y lo guardamos en todos_anillos. Por último, si el anillo es el más grande hasta el momento, lo guardamos en la variable que identifica al anillo más grande. Finalmente, si la palabra no estaba en el historial se llama a la función recursiva y se siguen investigando para ir a por más anillos.
+
+En la última parte tenemos la función la cual llama a la función principal y muestra de forma entendible por pantalla las cosas y muestra los resultados.
+
+```{r parte3, eval=FALSE, echo=TRUE}
+buscar_anillos_y_maximo <- function(palabra_ini, profundidad_max = 20) {
+
+  mejor_anillo_encontrado <<- list()
+  todos_anillos <<- list()
+  max_longitud <<- 0
+  
+  print(paste("Palabra incial", palabra_ini, "con profundidad máx:", profundidad_max))
+  
+  # Llamada inicial
+  encontrar_anillos(palabra_ini, c(palabra_ini), profundidad_max)
+  
+  if (max_longitud == 0) {
+    print("No se encontró ningún anillo en esta rama")
+    return(NULL)
+  }
+  
+  cat("\n\nResultado\n")
+  cat("Anillo más grande encontrado:", paste(mejor_anillo_encontrado, collapse = " -> "), "\n")
+  cat("Longitud:", max_longitud, "\n")
+  
+  cat("\nTodos los anillos encontrados\n")
+  for (palabra in names(todos_anillos)) {
+    for (longitud in names(todos_anillos[[palabra]])) {
+      anillo <- todos_anillos[[palabra]][[longitud]]
+      cat("Palabra:", palabra, " Longitud:", longitud, " Anillo:", paste(anillo, collapse = " -> "), "\n")
+    }
+  }
+  
+  return(mejor_anillo_encontrado)
+}
+
+#Ejecutar programa
+tamano_palabra <- as.integer(readline(prompt = "Introduce la longitud de las palabras: "))
+if (is.na(tamano_palabra)) { tamano_palabra <- 2 }
+
+palabras <- filtro_palabras(tamano_palabra)
+if (length(palabras) == 0) { stop("No hay palabras de esa longitud.") }
+
+palabra_ini <- readline(prompt = "Introduce la palabra inicial (o Enter para aleatoria): ")
+if (palabra_ini == "") {
+  palabra_ini <- sample(palabras, 1)
+}
+
+# Ejecución
+resultado <- buscar_anillos_y_maximo(palabra_ini, profundidad_max = 10000)
+```
+
+Como se puede ver, creamos una función que prepara el programa donde primero reinicia las variables globales y llama a la función principal. Cuando termina la llamada a esa función principal, se muestran los resultados.
+
+## Resultado del ejercicio 4
+
+```{r res_ejer4}
+load("anillos_ws.RData")
+
+cat("Anillo más largo encontrado:\n")
+cat("Longitud:", max_longitud, "\n\n")
+
+# Mostrar anillo con saltos de línea
+anillo_texto <- paste(mejor_anillo_encontrado, collapse = " -> ")
+cat(strwrap(anillo_texto, width = 70), sep = "\n")
+
+cat("\n\nResultado para anillo más largo de 'truco':\n")
+max_long <- max(as.integer(names(todos_anillos[["truco"]])))
+truco_anillo <- todos_anillos[["truco"]][[as.character(max_long)]]
+cat("Longitud:", max_long, "\n")
+cat("Anillo:", paste(truco_anillo, collapse = " -> "), "\n")
+```
+
+Como podemos ver, el anillo más grande encontrado es el anillo para la palabra rumba con un total de 1572(limitado por la pila).
+
+Por otro lado, para la palabra truco, el mayor anillo encontrado es de 2.
+
+Por último, aclarar que no mostramos todos los anillos encontrados porque ocuparía muchas hojas, pero se pueden ver y consultar en la variable todos_anillos del archivo anillos_ws.RData
